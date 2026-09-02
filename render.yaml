@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: zulwms
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: zulwms-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+
+databases:
+  - name: zulwms-db
+    plan: free

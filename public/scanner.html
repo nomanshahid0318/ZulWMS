@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>ZulWMS Scanner</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: -apple-system, Arial, sans-serif; background:#14181c; color:#e8ecef; }
+  .top { background:#1c2126; padding:14px 16px; border-bottom:1px solid #303941; }
+  .top h1 { margin:0; font-size:18px; }
+  .status { font-size:12px; margin-top:4px; }
+  .status.online { color:#4caf7d; }
+  .status.offline { color:#d9614f; }
+  .wrap { padding:16px; }
+  label { font-size:12px; color:#8b98a3; display:block; margin-bottom:4px; }
+  select, input, button { width:100%; font-size:18px; padding:12px; margin-bottom:14px; border-radius:6px; border:1px solid #303941; background:#232a30; color:#e8ecef; }
+  #scanInput { font-size:22px; font-family: monospace; text-align:center; border:2px solid #e08a2c; }
+  button { background:#e08a2c; color:#1c1204; font-weight:bold; border:none; }
+  button.secondary { background:#232a30; color:#e8ecef; border:1px solid #303941; }
+  .queue { margin-top:10px; }
+  .queue-item { display:flex; justify-content:space-between; padding:10px; background:#1c2126; border-radius:4px; margin-bottom:6px; font-family:monospace; font-size:14px; }
+  .queue-item .qty { color:#e08a2c; }
+  .badge { display:inline-block; background:#e08a2c; color:#1c1204; border-radius:10px; padding:1px 8px; font-size:12px; font-weight:bold; }
+  .empty { color:#8b98a3; font-size:14px; text-align:center; padding:20px; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <h1>ZulWMS Scanner <span class="badge" id="pendingBadge">0</span></h1>
+  <div class="status offline" id="netStatus">Offline — scans saved locally</div>
+</div>
+
+<div class="wrap">
+  <label>Document type</label>
+  <select id="docType">
+    <option value="grn">Inbound (GRN)</option>
+    <option value="dispatch">Outbound (Dispatch)</option>
+  </select>
+
+  <label>Document number</label>
+  <input id="docNumber" placeholder="e.g. GRN-2026-001" autocomplete="off">
+
+  <label>Scan barcode (or type + Enter)</label>
+  <input id="scanInput" placeholder="Ready to scan..." autocomplete="off" autofocus>
+
+  <label>Qty</label>
+  <input id="qtyInput" type="number" value="1" min="1">
+
+  <button onclick="syncNow()">Sync now (<span id="syncCount">0</span> pending)</button>
+  <button class="secondary" onclick="clearQueue()">Clear local queue</button>
+
+  <div class="queue" id="queueList"></div>
+</div>
+
+<script src="scanner.js"></script>
+</body>
+</html>

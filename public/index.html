@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZulWMS — Warehouse Console</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="login" class="card" style="max-width:340px;margin:100px auto;">
+  <h1>ZulWMS</h1>
+  <div class="subtitle">Warehouse Console</div>
+  <div class="row" style="flex-direction:column;align-items:stretch;gap:12px;">
+    <input id="loginUser" placeholder="Username" value="admin">
+    <input id="loginPass" type="password" placeholder="Password" value="admin123">
+    <button onclick="doLogin()">Sign in</button>
+    <div id="loginError" style="color:var(--bad);font-size:13px;"></div>
+  </div>
+</div>
+
+<div id="shell" class="shell hidden">
+  <div class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">ZulWMS</div>
+      <div class="brand-sub">Warehouse Console</div>
+    </div>
+    <a class="nav-item active" data-view="overview">Overview</a>
+    <a class="nav-item" data-view="grn">Inbound (GRN)</a>
+    <a class="nav-item" data-view="dispatch">Outbound (Dispatch)</a>
+    <a class="nav-item" data-view="inventory">Inventory</a>
+    <a class="nav-item" data-view="items">Item Master</a>
+    <a class="nav-item" data-view="devices">Devices</a>
+    <a class="nav-item" style="margin-top:20px;color:var(--bad);" onclick="logout()">Sign out</a>
+  </div>
+  <div class="main" id="main"></div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
