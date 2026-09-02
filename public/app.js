@@ -38,7 +38,7 @@ function boot() {
 
 function setView(view) {
   document.querySelectorAll('.nav-item[data-view]').forEach(el => el.classList.toggle('active', el.dataset.view === view));
-  const renderers = { overview, grn, dispatch, inventory, items, devices, po, transfers, returns, suppliers, reports, users };
+  const renderers = { overview, grn, dispatch, inventory, items, devices, po, transfers, returns, suppliers, reports, users, importscans };
   renderers[view]();
 }
 
@@ -375,3 +375,52 @@ async function createUser() {
 }
 
 if (TOKEN) boot();
+
+// ---------- IMPORT SCANS (USB workflow) ----------
+async function importscans() {
+  main().innerHTML = `<h1>Import Scans (USB)</h1><div class="subtitle">Bring in a scan file exported from a handheld device that has no internet access</div>
+    <div class="card">
+      <p style="color:var(--muted);font-size:14px;margin-top:0;">On the handheld: open the Scanner page → "Export to file" → connect the device to this PC via USB → copy the .json file over → select it below.</p>
+      <input type="file" id="importScansFile" accept="application/json">
+      <button onclick="uploadImportFile()" style="margin-top:10px;">Upload & sync</button>
+      <div id="importResult" style="margin-top:14px;font-size:14px;"></div>
+    </div>`;
+}
+
+async function uploadImportFile() {
+  const fileInput = document.getElementById('importScansFile');
+  const file = fileInput.files[0];
+  if (!file) { alert('Choose a file first'); return; }
+
+  const text = await file.text();
+  let payload;
+  try { payload = JSON.parse(text); } catch (e) { alert('Invalid file'); return; }
+
+  const device_code = payload.device_code || 'USB-IMPORT';
+  const device_type = payload.device_type || 'unknown';
+  const scans = payload.scans || payload;
+
+  const groups = {};
+  scans.forEach(item => {
+    const key = item.doc_type + '::' + item.doc_number;
+    if (!groups[key]) groups[key] = { doc_type: item.doc_type, doc_number: item.doc_number, lines: [] };
+    groups[key].lines.push(item);
+  });
+
+  let totalInserted = 0;
+  let docsProcessed = 0;
+  for (const key in groups) {
+    const g = groups[key];
+    const res = await fetch('/api/sync/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ device_code, doc_type: g.doc_type, doc_number: g.doc_number, header: { device_type }, lines: g.lines })
+    });
+    const data = await res.json();
+    totalInserted += data.lines_newly_inserted || 0;
+    docsProcessed++;
+  }
+
+  document.getElementById('importResult').innerHTML =
+    `<span style="color:var(--good)">Done — ${docsProcessed} document(s) processed, ${totalInserted} new scan line(s) added.</span>`;
+}

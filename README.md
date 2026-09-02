@@ -120,9 +120,107 @@ zulwms/
 
 Change your own password via `POST /api/users/change-password` (a UI screen for this can be added on request).
 
-## Next features to add (tell me which to prioritize)
-- Push-based auto-sync (background sync instead of manual button) on modern Android
-- Native Android app wrapper (for camera-based scanning without external hardware scanner)
-- Batch/lot + expiry UI in the dashboard (columns already exist in the database)
-- Per-warehouse dashboards / filtering
-- Low-stock alerts / reorder points
+## Devices with different IPs / 10-15 handhelds — is that a problem?
+
+**No.** This is a client-server system, not device-to-device. Every handheld (10, 15, or 100 of
+them) only ever talks to **one fixed address**: your Render app's URL
+(e.g. `https://zulwms.onrender.com`). Devices never talk to each other and never need to know
+each other's IP or be on the same network as each other. Each device just needs *any* internet
+connection (WiFi, hotspot, mobile data) to reach that one URL. This is exactly how apps like
+WhatsApp or Gmail work across thousands of phones with different IPs — nothing to configure per
+device.
+
+## Two ways data gets from a handheld to the server
+
+**1. Online sync (primary, no cable)**
+Open `/scanner.html` on the device's browser → scan → tap **Sync now** whenever the device has any
+connectivity. Data goes straight to the server. This should be the default for every device that
+has WiFi in the warehouse.
+
+**2. USB / offline file transfer (backup, works with zero connectivity ever)**
+For devices that never get online, or as your accustomed workflow:
+- On the handheld: Scanner page → **"Export to file"** → saves a `.json` file to the device's
+  Downloads folder.
+- Connect the device to a PC via USB cable (mass storage / file transfer mode), copy that file
+  onto the PC.
+- On the PC: open the dashboard → **Import Scans (USB)** → select the file → **Upload & sync**.
+  Data is applied to the same database, same as online sync — this replaces the old
+  "connect device to PC and download" step exactly, just via a file instead of proprietary
+  software.
+
+Both methods can be used side by side — some devices sync online, others via USB, all landing in
+the same system.
+
+## Installing the scanner as an app on a device
+
+On a modern Android device: open `/scanner.html` in Chrome → a green **"Install this app on
+device"** button appears (or use Chrome's menu → *Add to Home Screen*) → it now behaves like a
+normal installed app with its own icon, and keeps working fully offline once installed.
+
+On very old Windows CE / Windows Mobile PDTs, the built-in browser usually can't install apps this
+way — that's fine, those devices should just keep the scanner page open and use the
+**Export to file / USB** workflow above.
+
+---
+
+## Full "how to use" guide
+
+### First-time setup (once)
+1. Log in to the dashboard at your Render URL with `admin / admin123`.
+2. Go to **Users** → change your password (there's no screen for this yet in the UI — use
+   `POST /api/users/change-password` with your current + new password, or ask for a settings
+   screen to be added).
+3. Go to **Users** → add one account per staff member, with the right role (`operator` for
+   scanning-only staff, `supervisor` for staff who also manage suppliers/POs, `admin` for you).
+4. Go to **Suppliers** → add your suppliers.
+5. Go to **Item Master** → add your barcodes and item names (or add them as you go — scanning an
+   unknown barcode still records the scan, you can map it to an item afterward).
+6. If you have more than one warehouse, add the others from the dashboard (currently via
+   `POST /api/inventory/warehouses` — a UI screen for this can be added on request).
+
+### Receiving stock (inbound)
+1. **Dashboard → Purchase Orders → New PO**, pick the supplier, note the PO number.
+2. When goods arrive: **Purchase Orders → Receive (create GRN)** on that PO → gives you a GRN
+   number, already linked to the PO.
+3. On the handheld: open the scanner page → Document type = **Inbound (GRN)** → type in that GRN
+   number → scan every box/item → **Sync now** (or export/import via USB).
+4. Back on the dashboard: **Inbound (GRN)** → open the GRN → **Close** → stock is added to
+   inventory and the PO auto-updates (marked received / partially received / closed).
+
+   *(You can also skip the PO step entirely and just create a GRN directly from the GRN screen —
+   POs are optional, useful when you want to track what was ordered vs what arrived.)*
+
+### Shipping stock (outbound)
+1. **Dashboard → Outbound (Dispatch) → New Dispatch**, enter customer name, note the dispatch
+   number.
+2. On the handheld: Document type = **Outbound (Dispatch)** → enter that dispatch number → scan →
+   sync.
+3. Dashboard → **Outbound (Dispatch)** → open it → **Close** → stock is deducted.
+
+### Moving stock between warehouses
+1. **Dashboard → Transfers → New transfer**, pick source and destination warehouse.
+2. **+ Add item** on that transfer row → enter barcode + qty (repeat per item) — or extend the
+   handheld app to support transfers too, if you'd like that added.
+3. **Close & move stock** — stock is deducted from source, added to destination. It will refuse to
+   close if the source doesn't have enough stock.
+
+### Handling returns or damaged goods
+**Dashboard → Returns/Damage → New** → pick type:
+- *Customer return* → stock goes back into inventory.
+- *Damage* or *Supplier return* → stock is written off / removed, not added back.
+
+### Checking stock and history
+- **Inventory** → live stock per warehouse.
+- **Reports** → full movement history (every stock change with who/when/why), a slow-moving stock
+  list (nothing touched in 30+ days), and CSV export buttons for both stock and movement history.
+- **Devices** → every handheld that has ever synced shows up automatically here — nothing to
+  register manually.
+
+### Printing barcode labels
+**Sidebar → Print Labels ↗** opens a new tab, pulls your whole item master, generates a label
+grid, and has a Print button (browser's native print-to-any-printer).
+
+### Adding a new handheld device
+Nothing to configure. Open `/scanner.html` in the device's browser (or the installed app), start
+scanning — the device registers itself in **Devices** automatically the first time it syncs.
+

@@ -2,6 +2,29 @@
 // it works on very old browsers (Windows CE / Windows Mobile IE) as well as modern Android Chrome,
 // which is the compatibility requirement across old + new handheld devices.
 
+// Register service worker so the app works fully offline and is installable on the home screen.
+// Wrapped in a feature check so it silently does nothing on very old browsers that lack SW support --
+// those devices simply fall back to the "Export to file / USB transfer" workflow below.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
+
+let deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  const btn = document.getElementById('installBtn');
+  if (btn) btn.style.display = 'block';
+});
+function installApp() {
+  if (!deferredInstallPrompt) { alert('Already installed, or your browser doesn\'t support installable apps. On old devices, use Export/Import via USB instead.'); return; }
+  deferredInstallPrompt.prompt();
+  deferredInstallPrompt = null;
+  document.getElementById('installBtn').style.display = 'none';
+}
+
 const QUEUE_KEY = 'zulwms_scan_queue';
 const DEVICE_KEY = 'zulwms_device_code';
 
@@ -110,6 +133,51 @@ async function syncNow() {
 
 function clearQueue() {
   if (confirm('Clear all locally queued (unsynced) scans?')) saveQueue([]);
+}
+
+// ---------- USB / file-based transfer (works with zero connectivity, replaces the old "connect PDT to PC" step) ----------
+
+function exportQueueToFile() {
+  const q = getQueue();
+  if (q.length === 0) { alert('Nothing to export -- scan something first'); return; }
+
+  const payload = {
+    device_code: getDeviceCode(),
+    device_type: /android/i.test(navigator.userAgent) ? 'android' : 'pdt_windows_ce',
+    exported_at: new Date().toISOString(),
+    scans: q
+  };
+
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `zulwms-scans-${getDeviceCode()}-${Date.now()}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+
+  alert('File saved to your device\'s Downloads folder. Connect this device to a PC via USB, copy that file over, then open the ZulWMS dashboard → "Import Scans" to bring it in -- or keep it queued here and use "Sync now" once you have internet.');
+}
+
+function importQueueFromFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const payload = JSON.parse(e.target.result);
+      const incoming = payload.scans || payload; // support raw array too
+      const existing = getQueue();
+      const existingUuids = new Set(existing.map(x => x.client_uuid));
+      const merged = existing.concat(incoming.filter(x => !existingUuids.has(x.client_uuid)));
+      saveQueue(merged);
+      alert(`Imported ${incoming.length} scan(s) into this device's queue. Use "Sync now" to send them to the server.`);
+    } catch (err) {
+      alert('Could not read this file -- make sure it is a ZulWMS export file.');
+    }
+  };
+  reader.readAsText(file);
 }
 
 function updateNetStatus() {
