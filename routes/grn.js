@@ -1,5 +1,6 @@
 const express = require('express');
 const pool = require('../db/pool');
+const { logAction, ledgerEntry } = require('../db/audit');
 const router = express.Router();
 
 // List GRNs
@@ -70,8 +71,27 @@ router.post('/:id/close', async (req, res) => {
        DO UPDATE SET qty_on_hand = inventory.qty_on_hand + $3, updated_at = NOW()`,
       [warehouse_id, line.item_id, line.total_qty]
     );
+    await ledgerEntry(warehouse_id, line.item_id, 'grn_in', line.total_qty, 'grn', req.params.id, req.user ? req.user.id : null);
   }
+
+  // If this GRN was raised against a PO, update received quantities + PO status
+  if (header.rows[0].po_id) {
+    for (const line of lines.rows) {
+      await pool.query(
+        `UPDATE po_lines SET qty_received = qty_received + $1 WHERE po_id = $2 AND item_id = $3`,
+        [line.total_qty, header.rows[0].po_id, line.item_id]
+      );
+    }
+    const remaining = await pool.query(
+      `SELECT COUNT(*) FROM po_lines WHERE po_id = $1 AND qty_received < qty_ordered`,
+      [header.rows[0].po_id]
+    );
+    const newStatus = parseInt(remaining.rows[0].count) === 0 ? 'closed' : 'partially_received';
+    await pool.query('UPDATE po_header SET status = $1 WHERE id = $2', [newStatus, header.rows[0].po_id]);
+  }
+
   await pool.query("UPDATE grn_header SET status = 'closed' WHERE id = $1", [req.params.id]);
+  await logAction(req.user ? req.user.id : null, 'close_grn', 'grn', req.params.id, { items_posted: lines.rows.length });
   res.json({ ok: true, items_posted: lines.rows.length });
 });
 

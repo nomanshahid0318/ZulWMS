@@ -1,5 +1,6 @@
 const express = require('express');
 const pool = require('../db/pool');
+const { logAction, ledgerEntry } = require('../db/audit');
 const router = express.Router();
 
 router.get('/', async (req, res) => {
@@ -64,8 +65,10 @@ router.post('/:id/close', async (req, res) => {
        DO UPDATE SET qty_on_hand = inventory.qty_on_hand - $3, updated_at = NOW()`,
       [warehouse_id, line.item_id, line.total_qty]
     );
+    await ledgerEntry(warehouse_id, line.item_id, 'dispatch_out', -line.total_qty, 'dispatch', req.params.id, req.user ? req.user.id : null);
   }
   await pool.query("UPDATE dispatch_header SET status = 'closed' WHERE id = $1", [req.params.id]);
+  await logAction(req.user ? req.user.id : null, 'close_dispatch', 'dispatch', req.params.id, { items_posted: lines.rows.length });
   res.json({ ok: true, items_posted: lines.rows.length });
 });
 

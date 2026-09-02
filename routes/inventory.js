@@ -23,4 +23,11 @@ router.get('/warehouses', async (req, res) => {
   res.json(rows);
 });
 
+router.post('/warehouses', async (req, res) => {
+  const { name, location } = req.body;
+  if (!name) return res.status(400).json({ error: 'name required' });
+  const { rows } = await pool.query('INSERT INTO warehouses (name, location) VALUES ($1,$2) RETURNING *', [name, location || null]);
+  res.json(rows[0]);
+});
+
 module.exports = router;

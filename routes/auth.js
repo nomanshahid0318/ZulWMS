@@ -33,4 +33,15 @@ function authMiddleware(req, res, next) {
   }
 }
 
-module.exports = { router, authMiddleware };
+// requireRole('admin') or requireRole('admin', 'supervisor') -- use after authMiddleware
+function requireRole(...roles) {
+  return (req, res, next) => {
+    if (!req.user) return res.status(401).json({ error: 'not authenticated' });
+    if (!roles.includes(req.user.role)) {
+      return res.status(403).json({ error: `requires role: ${roles.join(' or ')}` });
+    }
+    next();
+  };
+}
+
+module.exports = { router, authMiddleware, requireRole };

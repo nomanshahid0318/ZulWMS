@@ -110,6 +110,108 @@ CREATE TABLE IF NOT EXISTS sync_log (
     synced_at TIMESTAMP DEFAULT NOW()
 );
 
+-- Batch/lot + expiry tracking on the line level (nullable -- only used when relevant)
+ALTER TABLE grn_lines ADD COLUMN IF NOT EXISTS batch_number VARCHAR(50);
+ALTER TABLE grn_lines ADD COLUMN IF NOT EXISTS expiry_date DATE;
+ALTER TABLE dispatch_lines ADD COLUMN IF NOT EXISTS batch_number VARCHAR(50);
+ALTER TABLE dispatch_lines ADD COLUMN IF NOT EXISTS expiry_date DATE;
+ALTER TABLE grn_header ADD COLUMN IF NOT EXISTS po_id INTEGER;
+
+-- ===================== PURCHASE ORDERS =====================
+CREATE TABLE IF NOT EXISTS po_header (
+    id SERIAL PRIMARY KEY,
+    po_number VARCHAR(50) UNIQUE NOT NULL,
+    supplier_id INTEGER REFERENCES suppliers(id),
+    warehouse_id INTEGER REFERENCES warehouses(id),
+    status VARCHAR(20) DEFAULT 'open', -- open | partially_received | closed | cancelled
+    created_by INTEGER REFERENCES users(id),
+    created_at TIMESTAMP DEFAULT NOW(),
+    expected_date DATE
+);
+
+CREATE TABLE IF NOT EXISTS po_lines (
+    id SERIAL PRIMARY KEY,
+    po_id INTEGER REFERENCES po_header(id) ON DELETE CASCADE,
+    item_id INTEGER REFERENCES items(id),
+    qty_ordered NUMERIC(12,2) NOT NULL,
+    qty_received NUMERIC(12,2) NOT NULL DEFAULT 0,
+    unit_price NUMERIC(12,2)
+);
+
+DO $$ BEGIN
+    ALTER TABLE grn_header ADD CONSTRAINT fk_grn_po FOREIGN KEY (po_id) REFERENCES po_header(id) ON DELETE SET NULL;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+-- ===================== STOCK TRANSFERS (between warehouses) =====================
+CREATE TABLE IF NOT EXISTS transfer_header (
+    id SERIAL PRIMARY KEY,
+    transfer_number VARCHAR(50) UNIQUE NOT NULL,
+    from_warehouse_id INTEGER REFERENCES warehouses(id),
+    to_warehouse_id INTEGER REFERENCES warehouses(id),
+    status VARCHAR(20) DEFAULT 'open', -- open | closed
+    created_by INTEGER REFERENCES users(id),
+    created_at TIMESTAMP DEFAULT NOW(),
+    closed_at TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS transfer_lines (
+    id SERIAL PRIMARY KEY,
+    transfer_id INTEGER REFERENCES transfer_header(id) ON DELETE CASCADE,
+    item_id INTEGER REFERENCES items(id),
+    qty NUMERIC(12,2) NOT NULL,
+    barcode_scanned VARCHAR(100),
+    client_uuid VARCHAR(64) UNIQUE
+);
+
+-- ===================== STOCK LEDGER (single source of truth for all movements, used for reports) ====
+CREATE TABLE IF NOT EXISTS stock_ledger (
+    id SERIAL PRIMARY KEY,
+    warehouse_id INTEGER REFERENCES warehouses(id),
+    item_id INTEGER REFERENCES items(id),
+    movement_type VARCHAR(20) NOT NULL, -- grn_in | dispatch_out | transfer_in | transfer_out | adjustment
+    qty_change NUMERIC(12,2) NOT NULL, -- positive or negative
+    ref_type VARCHAR(20),               -- grn | dispatch | transfer | manual
+    ref_id INTEGER,
+    created_by INTEGER REFERENCES users(id),
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- ===================== RETURNS / DAMAGE =====================
+CREATE TABLE IF NOT EXISTS returns_header (
+    id SERIAL PRIMARY KEY,
+    return_number VARCHAR(50) UNIQUE NOT NULL,
+    return_type VARCHAR(20) NOT NULL, -- customer_return | damage | supplier_return
+    warehouse_id INTEGER REFERENCES warehouses(id),
+    created_by INTEGER REFERENCES users(id),
+    created_at TIMESTAMP DEFAULT NOW(),
+    notes TEXT
+);
+
+CREATE TABLE IF NOT EXISTS returns_lines (
+    id SERIAL PRIMARY KEY,
+    return_id INTEGER REFERENCES returns_header(id) ON DELETE CASCADE,
+    item_id INTEGER REFERENCES items(id),
+    qty NUMERIC(12,2) NOT NULL,
+    restock BOOLEAN DEFAULT TRUE -- false = written off (damaged), true = back into inventory
+);
+
+-- ===================== AUDIT TRAIL =====================
+CREATE TABLE IF NOT EXISTS audit_log (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id),
+    action VARCHAR(100) NOT NULL,
+    entity_type VARCHAR(50),
+    entity_id INTEGER,
+    details JSONB,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
 CREATE INDEX IF NOT EXISTS idx_items_barcode ON items(barcode);
 CREATE INDEX IF NOT EXISTS idx_grn_lines_grn ON grn_lines(grn_id);
 CREATE INDEX IF NOT EXISTS idx_dispatch_lines_dispatch ON dispatch_lines(dispatch_id);
+CREATE INDEX IF NOT EXISTS idx_po_lines_po ON po_lines(po_id);
+CREATE INDEX IF NOT EXISTS idx_transfer_lines_transfer ON transfer_lines(transfer_id);
+CREATE INDEX IF NOT EXISTS idx_stock_ledger_item ON stock_ledger(item_id, warehouse_id);
+CREATE INDEX IF NOT EXISTS idx_stock_ledger_created ON stock_ledger(created_at);
+CREATE INDEX IF NOT EXISTS idx_audit_log_entity ON audit_log(entity_type, entity_id);

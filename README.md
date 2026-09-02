@@ -93,10 +93,35 @@ zulwms/
 └── package.json
 ```
 
+## Modules included
+
+- **Purchase Orders** — raise a PO against a supplier, receive against it with one click (auto-creates
+  a linked GRN), PO auto-closes when fully received.
+- **GRN (inbound)** — scan-based goods receipt, closing posts stock and the movement ledger.
+- **Dispatch (outbound)** — scan-based shipment, closing deducts stock.
+- **Stock transfers** — move inventory between warehouses; validates source stock before allowing the move.
+- **Returns / damage** — customer returns (restock), supplier returns and damage write-offs.
+- **Inventory** — live stock-on-hand per warehouse.
+- **Reports** — stock movement ledger, current stock snapshot, slow-moving stock (30+ day aging),
+  audit trail. Stock and movements are exportable as CSV.
+- **Item master** — barcode-to-item mapping.
+- **Suppliers** — vendor master used by POs.
+- **Users & roles** — admin / supervisor / operator, enforced server-side on every write endpoint.
+- **Barcode label printing** — `/labels.html`, pulls the item master and prints a label grid (or paste
+  specific barcodes) using JsBarcode.
+- **Devices** — every handheld that has synced shows up automatically, no manual registration needed.
+
+## Roles
+
+- **operator**: can scan/create GRN, dispatch, transfers; cannot manage suppliers, users, or delete records.
+- **supervisor**: operator permissions + manage suppliers and purchase orders.
+- **admin**: full access, including user management and deletions.
+
+Change your own password via `POST /api/users/change-password` (a UI screen for this can be added on request).
+
 ## Next features to add (tell me which to prioritize)
-- Multi-warehouse transfer documents
-- Barcode label printing from the dashboard
-- Role-based permissions (admin/supervisor/operator already in schema)
-- CSV export of GRN/Dispatch/Inventory
 - Push-based auto-sync (background sync instead of manual button) on modern Android
 - Native Android app wrapper (for camera-based scanning without external hardware scanner)
+- Batch/lot + expiry UI in the dashboard (columns already exist in the database)
+- Per-warehouse dashboards / filtering
+- Low-stock alerts / reorder points

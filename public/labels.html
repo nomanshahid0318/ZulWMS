@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ZulWMS — Print Labels</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/JsBarcode/3.11.6/JsBarcode.all.min.js"></script>
+<style>
+  body { font-family: Arial, sans-serif; background:#14181c; color:#e8ecef; margin:0; padding:20px; }
+  .controls { max-width: 500px; margin: 0 auto 20px; background:#1c2126; padding:16px; border-radius:6px; }
+  .controls input, .controls button { width:100%; padding:10px; margin-bottom:10px; border-radius:4px; border:1px solid #303941; background:#232a30; color:#e8ecef; font-size:14px; }
+  .controls button { background:#e08a2c; color:#1c1204; font-weight:bold; border:none; cursor:pointer; }
+  #labelGrid { display:grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-width: 700px; margin: 0 auto; }
+  .label { background:#fff; color:#000; padding:8px; text-align:center; border-radius:4px; }
+  .label .name { font-size:11px; margin-top:4px; font-weight:bold; }
+  @media print {
+    body { background:#fff; padding:0; }
+    .controls { display:none; }
+    .label { break-inside: avoid; border: 1px solid #ccc; }
+  }
+</style>
+</head>
+<body>
+  <div class="controls">
+    <input id="barcodesInput" placeholder="Barcodes, comma separated (or leave blank to load from item master)">
+    <button onclick="loadFromItems()">Load all items from Item Master</button>
+    <button onclick="renderLabels()">Generate labels</button>
+    <button onclick="window.print()">Print</button>
+  </div>
+  <div id="labelGrid"></div>
+
+<script>
+const TOKEN = localStorage.getItem('zulwms_token');
+
+async function loadFromItems() {
+  const res = await fetch('/api/items', { headers: { 'Authorization': 'Bearer ' + TOKEN } });
+  const items = await res.json();
+  window._items = items;
+  renderLabels();
+}
+
+async function renderLabels() {
+  const grid = document.getElementById('labelGrid');
+  grid.innerHTML = '';
+  let items = window._items || [];
+  const manual = document.getElementById('barcodesInput').value.trim();
+  if (manual) {
+    items = manual.split(',').map(b => ({ barcode: b.trim(), name: '' }));
+  }
+  if (items.length === 0) { alert('No items to print. Load from item master or enter barcodes.'); return; }
+
+  items.forEach((item, idx) => {
+    const div = document.createElement('div');
+    div.className = 'label';
+    const svgId = 'bc' + idx;
+    div.innerHTML = `<svg id="${svgId}"></svg><div class="name">${item.name || ''}</div>`;
+    grid.appendChild(div);
+    JsBarcode('#' + svgId, item.barcode, { width: 1.5, height: 40, fontSize: 12, margin: 4 });
+  });
+}
+</script>
+</body>
+</html>
