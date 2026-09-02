@@ -44,21 +44,22 @@ Scanner page (open on any handheld's browser): `http://localhost:3000/scanner.ht
    - a free Web Service (your app)
    - a free Postgres database, already wired via `DATABASE_URL`
 
-3. After first deploy finishes, open the Render **Shell** tab for the web service and run:
-   ```bash
-   npm run initdb
-   ```
-   This creates the tables and seeds the login `admin / admin123`. **Change this password
-   immediately after first login** (a "change password" endpoint can be added — ask if you want it).
+   The web service's start command is `node db/init.js && node server.js` — the database schema
+   is applied **automatically on every deploy and restart**. You do not need to open the Render
+   Shell at all. It's safe to run repeatedly (it only creates what's missing and never re-seeds
+   an existing admin user).
 
-4. From then on, your workflow is exactly what you asked for:
+3. That's it — no manual step needed after the first deploy. Just:
    ```bash
    git add .
    git commit -m "some change"
    git push
    ```
-   Render auto-redeploys on every push. Open the live URL on your phone/PDT browser to test in
-   real conditions.
+   Render auto-redeploys on every push, re-applying the schema automatically, then starting the
+   app. Open the live URL on your phone/PDT browser to test in real conditions.
+
+   First login: `admin / admin123` — **change this immediately** via
+   `POST /api/users/change-password` once logged in (ask if you want a UI screen for this).
 
 ## How the offline sync replaces the old "connect device to PC" step
 
